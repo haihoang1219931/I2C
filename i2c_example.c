@@ -16,37 +16,18 @@
 #include <errno.h>
 
 #include <linux/types.h>
-#include <linux/i2c.h>
-#include <linux/i2c-dev.h>
-
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
-static inline __s32 i2c_smbus_access(int file, char read_write, __u8 command,
-                                     int size, union i2c_smbus_data *data)
-{
-	struct i2c_smbus_ioctl_data args;
-
-	args.read_write = read_write;
-	args.command = command;
-	args.size = size;
-	args.data = data;
-	return ioctl(file,I2C_SMBUS,&args);
-}
+#include "linux/i2c-dev.h"
+#include "i2c/smbus.h"
 
 
-static inline __s32 i2c_smbus_read_byte_data(int file, __u8 command)
-{
-	union i2c_smbus_data data;
-	if (i2c_smbus_access(file,I2C_SMBUS_READ,command,
-	                     I2C_SMBUS_BYTE_DATA,&data))
-		return -1;
-	else
-		return 0x0FF & data.byte;
-}
-void readInfo(char *path, uint8_t addr, unsigned char *listRegs,int numRegs,unsigned char *output,int lengthOutput){
+
+void readInfo(char *path, uint8_t addr, unsigned char *listRegs,
+int numRegs,unsigned char *output,int lengthOutput){
 	int file, rc;	
 	file = open(path, O_RDWR);
 	if (file < 0)
@@ -62,6 +43,20 @@ void readInfo(char *path, uint8_t addr, unsigned char *listRegs,int numRegs,unsi
 	}
 	close(file);
 }
+
+void writeInfo(char *path, uint8_t addr, uint8_t reg, uint8_t command){
+	int file, rc;	
+	file = open(path, O_RDWR);
+	if (file < 0)
+		err(errno, "Tried to open '%s'", path); 
+
+	rc = ioctl(file, I2C_SLAVE, addr);
+	if (rc < 0)
+		err(errno, "Tried to set device address '0x%02x'", addr);
+	i2c_smbus_write_byte_data(file, reg, command);
+	close(file);
+}
+
 int main(int argc, char **argv)
 {
 	unsigned char name[6] = {0xF0,0xF1,0xF2,0xF3,0xF4,0xF5};	
@@ -73,4 +68,9 @@ int main(int argc, char **argv)
 		printf("%c",buff[i]);
 	}
 	printf("\r\n");
+	printf("Pattern generator: ...");
+	writeInfo("/dev/i2c-7",0x3c,0x64,0x15);
+	writeInfo("/dev/i2c-7",0x3c,0x65,0x05);
+	
+	printf("Done\r\n");
 }
